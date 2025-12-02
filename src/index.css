@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Valor por defecto: DORADO COSSCO en formato RGB (R G B).
+     IMPORTANTE: No usar comas, solo espacios. 
+     212 175 55 equivale a #D4AF37 
+  */
+  --color-primary: 212 175 55;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
