@@ -3,14 +3,39 @@
 @tailwind utilities;
 
 :root {
-  /* Valor por defecto: DORADO COSSCO en formato RGB (R G B).
-     IMPORTANTE: No usar comas, solo espacios. 
-     212 175 55 equivale a #D4AF37 
-  */
   --color-primary: 212 175 55;
 }
 
 body {
   background-color: #f8fafc;
   color: #0f172a;
+}
+
+/* --- OPTIMIZACIÓN PARA IMPRESORA TÉRMICA --- */
+@media print {
+  /* Ocultar elementos del navegador (encabezados, pies de página, scrollbars) */
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: white !important;
+    -webkit-print-color-adjust: exact !important; /* Fuerza la impresión de fondos/colores */
+    print-color-adjust: exact !important;
+  }
+
+  /* Aseguramos que todo el texto sea negro puro para máxima nitidez en térmica */
+  * {
+    color: #000000 !important;
+    text-shadow: none !important;
+    box-shadow: none !important; /* Quita sombras que se ven mal impresas */
+  }
+
+  /* Ocultar elementos que no sean el ticket (por seguridad) */
+  body > *:not(.print-container) {
+    display: none;
+  }
 }

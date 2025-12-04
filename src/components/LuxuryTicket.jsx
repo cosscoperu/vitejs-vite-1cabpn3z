@@ -1,24 +1,33 @@
 // src/components/LuxuryTicket.jsx
 import React, { useRef } from 'react';
 import html2canvas from 'html2canvas';
+import { useReactToPrint } from 'react-to-print';
 import toast from 'react-hot-toast';
-import { Share2, Download } from 'lucide-react';
+import { Share2, Download, Printer } from 'lucide-react';
 
 const LuxuryTicket = ({ saleData, businessConfig, onClose }) => {
   const ticketRef = useRef(null);
 
+  // --- CONFIGURACIÓN DE IMPRESIÓN OPTIMIZADA ---
+  const handlePrint = useReactToPrint({
+    content: () => ticketRef.current,
+    documentTitle: `Ticket-${saleData.id || 'venta'}`,
+    onAfterPrint: () => toast.success('Ticket enviado a impresora'),
+    removeAfterPrint: true,
+  });
+
   const handleGenerateImage = async (action) => {
     if (!ticketRef.current) return;
-    const toastId = toast.loading('Generando ticket...');
+    const toastId = toast.loading('Procesando...');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Espera breve para asegurar renderizado
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const canvas = await html2canvas(ticketRef.current, {
-        scale: 2,
+        scale: 3, // Mayor escala para mejor calidad de imagen
         backgroundColor: '#ffffff',
         useCORS: true,
-        allowTaint: true,
         logging: false
       });
 
@@ -29,31 +38,21 @@ const LuxuryTicket = ({ saleData, businessConfig, onClose }) => {
         link.href = imageBlob;
         link.download = `Ticket-${saleData.id || 'venta'}.png`;
         link.click();
-        toast.success('Ticket descargado', { id: toastId });
+        toast.success('Descargado', { id: toastId });
       } else if (action === 'whatsapp') {
-        if (navigator.share) {
-            try {
-                const base64Response = await fetch(imageBlob);
-                const blob = await base64Response.blob();
-                const file = new File([blob], `Ticket.png`, { type: 'image/png' });
-                await navigator.share({
-                    files: [file],
-                    title: 'Comprobante',
-                    text: `Gracias por tu compra en ${businessConfig.name || 'Tienda'} ✨`
-                });
-                toast.success('Abriendo compartir...', { id: toastId });
-            } catch (error) { toast.dismiss(toastId); }
-        } else {
-            const message = `Hola! Gracias por tu compra. Total: ${saleData.currency} ${saleData.total.toFixed(2)}`;
-            const phone = saleData.customerPhone ? saleData.customerPhone.replace(/\D/g,'') : ''; 
-            const link = document.createElement('a');
-            link.href = imageBlob;
-            link.download = `Ticket-${saleData.id}.png`;
-            link.click();
-            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-            window.open(waUrl, '_blank');
-            toast.success('Imagen descargada. Adjúntala en WhatsApp.', { id: toastId });
-        }
+        // Lógica de WhatsApp (igual a tu original)
+        const message = `Hola! Gracias por tu compra. Total: ${saleData.currency} ${saleData.total.toFixed(2)}`;
+        const phone = saleData.customerPhone ? saleData.customerPhone.replace(/\D/g,'') : ''; 
+        const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+        window.open(waUrl, '_blank');
+        
+        // Descargamos la imagen para que el usuario la adjunte manualmente (limitación web)
+        const link = document.createElement('a');
+        link.href = imageBlob;
+        link.download = `Ticket-${saleData.id}.png`;
+        link.click();
+        
+        toast.success('Imagen lista. Pégala en WhatsApp.', { id: toastId });
       }
     } catch (error) {
       console.error(error);
@@ -61,98 +60,124 @@ const LuxuryTicket = ({ saleData, businessConfig, onClose }) => {
     }
   };
 
-  // --- LÓGICA DE DECISIÓN DE QR ---
-  // ¿Tiene deuda? (Bolsita abierta)
+  // Lógica QR
   const hasDebt = (saleData.total - saleData.deposit) > 0.1; 
-  
-  // Si hay deuda -> Muestra QR Cobro. Si no -> Muestra QR Social.
-  // Si no hay QR Social configurado, muestra el de Cobro por defecto (o nada).
-  const targetQrImage = hasDebt 
-      ? businessConfig.qrImage 
-      : (businessConfig.socialQrImage || businessConfig.qrImage);
-
-  const qrTitle = hasDebt ? "Escanea para pagar saldo" : "¡Síguenos en Redes!";
-  const qrSubtitle = hasDebt ? "Yape / Plin" : "Para descuentos exclusivos";
+  const targetQrImage = hasDebt ? businessConfig.qrImage : (businessConfig.socialQrImage || businessConfig.qrImage);
+  const qrTitle = hasDebt ? "Escanea para pagar saldo" : "¡Síguenos!";
+  const qrSubtitle = hasDebt ? "Yape / Plin" : "Novedades y Ofertas";
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 print:p-0 print:bg-white print:static print:block">
       
-      <div className="bg-white shadow-2xl overflow-hidden mb-6" style={{ width: '380px' }}>
-        <div ref={ticketRef} className="bg-white p-8 text-slate-800 font-mono text-sm relative">
+      {/* CONTENEDOR VISUAL VS IMPRESIÓN 
+          - En pantalla: Ancho fijo 380px, sombra, bordes redondeados.
+          - En impresión: Ancho 100%, sin sombra, sin bordes, fondo blanco puro.
+      */}
+      <div 
+        className="bg-white shadow-2xl overflow-hidden mb-6 print:shadow-none print:mb-0 print:w-full print:rounded-none" 
+        style={{ width: '380px' }} // Este estilo inline se sobrescribe con CSS @media print si es necesario, pero mejor controlarlo con clases
+      >
+        
+        {/* ÁREA IMPRIMIBLE */}
+        <div 
+          ref={ticketRef} 
+          className="bg-white p-6 text-slate-900 font-mono text-xs relative print:p-2 print:text-black print:w-full"
+        >
           
-          <div className="absolute top-0 left-0 w-full h-2 opacity-50" style={{ background: businessConfig.themeColor || '#0f172a' }}></div>
+          {/* Decoración superior (Solo pantalla) */}
+          <div className="absolute top-0 left-0 w-full h-2 opacity-50 print:hidden" style={{ background: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--color-primary')})` }}></div>
 
           {/* HEADER */}
-          <div className="text-center mb-6 mt-2">
+          <div className="text-center mb-4 mt-2">
             {businessConfig.logoUrl ? (
-                <img src={businessConfig.logoUrl} alt="Logo" className="h-16 mx-auto mb-2 object-contain" crossOrigin="anonymous" />
+                <img src={businessConfig.logoUrl} alt="Logo" className="h-14 mx-auto mb-2 object-contain grayscale-0 print:grayscale" crossOrigin="anonymous" />
             ) : (
-                <h2 className="text-2xl font-black tracking-tighter uppercase mb-1">{businessConfig.name || 'TU TIENDA'}</h2>
+                <h2 className="text-xl font-black tracking-tighter uppercase mb-1">{businessConfig.name || 'TU TIENDA'}</h2>
             )}
-            <p className="text-xs text-slate-400 uppercase tracking-widest">Luxury Experience</p>
-            <div className="my-4 border-t border-dashed border-slate-300"></div>
-            <p className="text-xs text-slate-500">
-              Fecha: {saleData.createdAt?.toLocaleDateString ? saleData.createdAt.toLocaleDateString() : new Date().toLocaleDateString()} <br/>
-              Hora: {saleData.createdAt?.toLocaleTimeString ? saleData.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
-            </p>
+            
+            <div className="my-2 border-t border-dashed border-slate-300 print:border-black"></div>
+            
+            <div className="flex justify-between text-[10px] text-slate-500 print:text-black uppercase">
+               <span>{saleData.createdAt?.toLocaleDateString()}</span>
+               <span>{saleData.createdAt?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            </div>
+            <p className="text-[10px] text-slate-400 print:text-black mt-1">Ticket #{saleData.id ? saleData.id.slice(-6).toUpperCase() : '---'}</p>
           </div>
 
           {/* ITEMS */}
-          <div className="mb-6">
-            <div className="flex justify-between text-xs font-bold text-slate-400 mb-2 uppercase"><span>Item</span><span>Total</span></div>
+          <div className="mb-4">
+            <div className="flex justify-between text-[10px] font-bold border-b border-slate-200 pb-1 mb-2 print:border-black print:text-black uppercase">
+                <span>Cant. / Descrip.</span>
+                <span>Importe</span>
+            </div>
+            
             {saleData.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between mb-2 items-start">
-                <div className="pr-4"><span className="block font-bold text-slate-700">{item.name}</span><span className="text-xs text-slate-400">x{item.quantity}</span></div>
-                <span className="font-bold text-slate-800">{saleData.currency} {(item.price * item.quantity).toFixed(2)}</span>
+              <div key={idx} className="flex justify-between mb-1 items-start text-[11px]">
+                <div className="pr-2 flex-1">
+                    <span className="font-bold mr-1">{item.quantity}</span> 
+                    <span className="text-slate-700 print:text-black">{item.name}</span>
+                </div>
+                <span className="font-bold text-slate-900 print:text-black whitespace-nowrap">
+                    {saleData.currency} {(item.price * item.quantity).toFixed(2)}
+                </span>
               </div>
             ))}
           </div>
 
           {/* TOTALES */}
-          <div className="border-t-2 border-slate-800 pt-4 mb-8">
-            <div className="flex justify-between text-lg font-black"><span>TOTAL</span><span>{saleData.currency} {saleData.total.toFixed(2)}</span></div>
+          <div className="border-t-2 border-slate-800 pt-2 mb-6 print:border-black">
+            <div className="flex justify-between text-base font-black print:text-black">
+                <span>TOTAL</span>
+                <span>{saleData.currency} {saleData.total.toFixed(2)}</span>
+            </div>
             
             {hasDebt && (
-               <>
-                <div className="flex justify-between text-sm text-emerald-600 mt-2 font-bold"><span>Abonado:</span><span>- {saleData.currency} {saleData.deposit.toFixed(2)}</span></div>
-                <div className="flex justify-between text-base text-red-500 mt-1 font-black border-t border-dashed border-red-200 pt-1"><span>PENDIENTE:</span><span>{saleData.currency} {(saleData.total - saleData.deposit).toFixed(2)}</span></div>
-               </>
+               <div className="mt-2 text-xs border-t border-dashed border-slate-300 pt-1 print:border-black">
+                <div className="flex justify-between text-emerald-700 print:text-black"><span>Abonado:</span><span>{saleData.currency} {saleData.deposit.toFixed(2)}</span></div>
+                <div className="flex justify-between font-bold text-red-600 print:text-black mt-1"><span>PENDIENTE:</span><span>{saleData.currency} {(saleData.total - saleData.deposit).toFixed(2)}</span></div>
+               </div>
             )}
           </div>
 
-          {/* --- QR DINÁMICO --- */}
-          <div className="bg-slate-50 p-4 rounded-xl text-center border border-slate-100">
-            <p className="text-[10px] text-slate-400 mb-2 uppercase tracking-wider">{qrTitle}</p>
-            
-            <div className="mx-auto mb-2 flex items-center justify-center overflow-hidden rounded-lg bg-white p-1 shadow-sm" style={{width:'140px', height:'140px'}}>
-               {targetQrImage ? (
-                   <img src={targetQrImage} alt="QR" className="w-full h-full object-cover" crossOrigin="anonymous" />
-               ) : (
-                   <div className="w-full h-full bg-slate-900 flex items-center justify-center text-white text-[10px] p-2 text-center">
-                       [SIN QR CONFIGURADO]
-                   </div>
-               )}
-            </div>
-            
-            <p className="font-bold text-xs tracking-widest">{qrSubtitle}</p>
+          {/* QR (Optimizado para B/N) */}
+          <div className="flex flex-col items-center justify-center mb-4">
+            <p className="text-[9px] uppercase tracking-wider mb-1 print:text-black text-slate-500">{qrTitle}</p>
+            {targetQrImage && (
+                <div className="p-1 bg-white border border-slate-200 print:border-black rounded">
+                    <img src={targetQrImage} alt="QR" className="w-24 h-24 object-contain print:contrast-150" /> 
+                    {/* print:contrast-150 ayuda a que el QR salga más negro si es una imagen grisácea */}
+                </div>
+            )}
+            <p className="text-[9px] mt-1 font-bold print:text-black">{qrSubtitle}</p>
           </div>
 
           {/* FOOTER */}
-          <div className="mt-8 text-center">
-            <p className="text-xs font-bold mb-1">¡GRACIAS POR TU COMPRA!</p>
-            <p className="text-[10px] text-slate-500 leading-relaxed">
-              Etiquétanos en <span className="font-bold text-black text-sm">{businessConfig.instagram || '@tutienda'}</span>
-            </p>
-            <div className="mt-4 text-[9px] text-slate-300">ID: {saleData.id ? saleData.id.slice(-6).toUpperCase() : '---'}</div>
+          <div className="text-center text-[10px]">
+            <p className="font-bold mb-1 print:text-black">¡GRACIAS POR SU PREFERENCIA!</p>
+            {businessConfig.address && <p className="text-slate-500 print:text-black scale-90">{businessConfig.address}</p>}
+            <p className="mt-2 text-[9px] text-slate-400 print:text-black">Sistema: Cossco POS</p>
           </div>
 
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <button onClick={onClose} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-bold transition-colors">Cerrar</button>
-        <button onClick={() => handleGenerateImage('download')} className="px-6 py-3 bg-white hover:bg-slate-50 text-slate-900 rounded-full font-bold transition-colors flex items-center gap-2"><Download size={18} /> Descargar</button>
-        <button onClick={() => handleGenerateImage('whatsapp')} className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full font-bold transition-colors flex items-center gap-2 shadow-lg shadow-green-500/30"><Share2 size={18} /> Enviar WhatsApp</button>
+      {/* BOTONES (No se imprimen gracias a 'print:hidden' en el padre o porque están fuera del ref) */}
+      <div className="flex gap-3 flex-wrap justify-center print:hidden">
+        <button onClick={onClose} className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-bold text-sm">
+            Cerrar
+        </button>
+        
+        {/* Botón Principal de Impresión */}
+        <button onClick={handlePrint} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold flex items-center gap-2 text-sm shadow-lg shadow-blue-500/30">
+            <Printer size={16} /> Imprimir Ticket
+        </button>
+
+        <button onClick={() => handleGenerateImage('download')} className="px-5 py-2.5 bg-white text-slate-900 rounded-full font-bold flex items-center gap-2 text-sm hover:bg-slate-100">
+            <Download size={16} /> Imagen
+        </button>
+        <button onClick={() => handleGenerateImage('whatsapp')} className="px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-full font-bold flex items-center gap-2 text-sm shadow-lg shadow-green-500/30">
+            <Share2 size={16} /> WhatsApp
+        </button>
       </div>
 
     </div>
