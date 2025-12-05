@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'; 
-import PosInterface from '../components/PosInterface';
-import { useCart } from '../hooks/useCart';
-import { cn } from '../utils/cn'; 
-import { getAuth, onAuthStateChanged } from 'firebase/auth'; // 👈 IMPORTANTE: Seguridad
+import React, { useState, useEffect } from 'react';
+import PosInterface from '../components/interface/PosInterface';
+import { useCart } from '../../../hooks/useCart';
+import { cn } from '../../../utils/cn';
+
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 // --- CONFIGURACIÓN DEFAULT ---
 const DEFAULT_CONFIG = {

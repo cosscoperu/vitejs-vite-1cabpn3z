@@ -388,7 +388,7 @@ function PaymentModal({ show, onClose, totalAmount, onPaymentSuccess, storeConfi
 
         </div>
 
-        {/* COLUMNA DERECHA - PERFECTAMENTE BALANCEADA */}
+        {/* COLUMNA DERECHA */}
         <div className="flex-1 p-6 flex flex-col bg-white relative">
           
           {/* Botón Cerrar */}
@@ -400,7 +400,7 @@ function PaymentModal({ show, onClose, totalAmount, onPaymentSuccess, storeConfi
             <X size={18} />
           </button>
 
-          {/* Header Compacto */}
+          {/* Header */}
           <div className="mb-5">
             <h2 className="text-xl font-black text-slate-900 mb-0.5 flex items-center gap-2">
               Ingresar Pago
@@ -411,7 +411,7 @@ function PaymentModal({ show, onClose, totalAmount, onPaymentSuccess, storeConfi
             </p>
           </div>
 
-          {/* Grid de Métodos - TAMAÑO PERFECTO */}
+          {/* Grid de Métodos */}
           <div className="grid grid-cols-4 gap-2.5 mb-5">
             {activeMethods.map((method) => {
               const isSelected = selectedMethodId === method.id;
@@ -456,7 +456,7 @@ function PaymentModal({ show, onClose, totalAmount, onPaymentSuccess, storeConfi
             })}
           </div>
 
-          {/* Input Área - TAMAÑO OPTIMIZADO */}
+          {/* Input Área */}
           <div className="flex-1 flex flex-col justify-center mb-4">
             <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl p-5 border border-slate-100 shadow-inner">
               
@@ -493,7 +493,7 @@ function PaymentModal({ show, onClose, totalAmount, onPaymentSuccess, storeConfi
             </div>
           </div>
 
-          {/* Botón Finalizar - PROPORCIÓN PERFECTA */}
+          {/* Botón Finalizar */}
           <button
             ref={confirmButtonRef}
             onClick={handleConfirm}

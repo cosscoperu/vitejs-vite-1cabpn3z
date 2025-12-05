@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import useHotkeys from '../hooks/useHotkeys';
+import useHotkeys from '../../../../hooks/useHotkeys';
 import toast from 'react-hot-toast';
 
 function QuickSaleModal({ show, onClose, onAddProduct }) {

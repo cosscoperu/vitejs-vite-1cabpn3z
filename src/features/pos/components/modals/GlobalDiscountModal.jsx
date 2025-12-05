@@ -1,6 +1,6 @@
-// src/components/GlobalDiscountModal.jsx
+// src/features/pos/components/modals/GlobalDiscountModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import useHotkeys from '../hooks/useHotkeys';
+import useHotkeys from '../../../../hooks/useHotkeys';
 import toast from 'react-hot-toast';
 
 function GlobalDiscountModal({ show, onClose, currentTotal, onApplyDiscount }) {
@@ -34,8 +34,7 @@ function GlobalDiscountModal({ show, onClose, currentTotal, onApplyDiscount }) {
       return;
     }
 
-    // Calculamos el descuento necesario para llegar a ese precio
-    // Ejemplo: Total 103, Quiero 100 -> Descuento = 3
+    // Total 103, quiero 100 -> Descuento = 3
     const discountAmount = currentTotal - targetTotal;
     
     onApplyDiscount(discountAmount);
@@ -53,7 +52,9 @@ function GlobalDiscountModal({ show, onClose, currentTotal, onApplyDiscount }) {
     <div style={styles.modalOverlay}>
       <form onSubmit={handleConfirm} style={styles.modalContent}>
         <h2 style={styles.title}>Aplicar Descuento Global</h2>
-        <p style={styles.text}>Total Actual: <strong>S/ {currentTotal.toFixed(2)}</strong></p>
+        <p style={styles.text}>
+          Total Actual: <strong>S/ {currentTotal.toFixed(2)}</strong>
+        </p>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>Nuevo Total a Cobrar:</label>
@@ -68,8 +69,12 @@ function GlobalDiscountModal({ show, onClose, currentTotal, onApplyDiscount }) {
         </div>
 
         <div style={styles.buttonGroup}>
-          <button type="button" onClick={onClose} style={styles.buttonCancel}>Cancelar</button>
-          <button type="submit" style={styles.buttonSave}>Aplicar Descuento</button>
+          <button type="button" onClick={onClose} style={styles.buttonCancel}>
+            Cancelar
+          </button>
+          <button type="submit" style={styles.buttonSave}>
+            Aplicar Descuento
+          </button>
         </div>
       </form>
     </div>

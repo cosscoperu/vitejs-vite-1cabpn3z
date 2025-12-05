@@ -1,3 +1,4 @@
+// src/features/pos/components/modals/OpenRegisterModal.jsx
 import React, { useState } from 'react';
 
 function OpenRegisterModal({ show, onClose, onOpenShift, isOpen }) {
@@ -6,7 +7,7 @@ function OpenRegisterModal({ show, onClose, onOpenShift, isOpen }) {
 
   if (!show) return null;
 
-  // 1. PROTECCIÓN VISUAL: Si ya está abierta, mostramos aviso.
+  // 1. Si ya está abierta, solo mostramos aviso de turno iniciado.
   if (isOpen) {
     return (
       <div style={styles.overlay}>
@@ -29,7 +30,7 @@ function OpenRegisterModal({ show, onClose, onOpenShift, isOpen }) {
     );
   }
 
-  // 2. FORMULARIO NORMAL DE APERTURA
+  // 2. Formulario normal de apertura
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount) return;
@@ -45,7 +46,7 @@ function OpenRegisterModal({ show, onClose, onOpenShift, isOpen }) {
       <div style={styles.modal}>
         <h2 style={{ textAlign: 'center', color: '#333' }}>🌞 Abrir Caja</h2>
         <p style={{ textAlign: 'center', color: '#666', fontSize: '14px' }}>
-          Ingresa el fondo de caja inicial (Sencillo).
+          Ingresa el fondo de caja inicial (sencillo).
         </p>
 
         <form onSubmit={handleSubmit} style={styles.form}>

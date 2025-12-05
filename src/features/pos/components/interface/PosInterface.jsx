@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { db } from '../firebase/config';
+import { db } from '../../../../firebase/config';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { useSales } from '../hooks/useSales'; 
-import { useShifts } from '../hooks/useShifts';
+import { useSales } from '../../../../hooks/useSales';
+import { useShifts } from '../../../../hooks/useShifts';
 
 // Iconos modernos
 import { 
@@ -11,21 +11,21 @@ import {
   CreditCard, Archive, RefreshCcw, XCircle 
 } from 'lucide-react';
 
-// Modales y Componentes
-import PaymentModal from './PaymentModal';
-import QuickSaleModal from './QuickSaleModal';
-import GlobalDiscountModal from './GlobalDiscountModal';
-import DepartmentSelectorModal from './DepartmentSelectorModal';
-import DailySalesModal from './DailySalesModal';
-import OpenRegisterModal from './OpenRegisterModal';
-import CloseRegisterModal from './CloseRegisterModal';
-import ExpenseModal from './ExpenseModal';
+// Modales y Componentes (siguen aún en src/components)
+import PaymentModal from '../modals/PaymentModal';
+import QuickSaleModal from '../modals/QuickSaleModal';
+import GlobalDiscountModal from '../modals/GlobalDiscountModal';
+import DepartmentSelectorModal from '../modals/DepartmentSelectorModal';
+import DailySalesModal from '../modals/DailySalesModal';
+import OpenRegisterModal from '../modals/OpenRegisterModal';
+import CloseRegisterModal from '../modals/CloseRegisterModal';
+import ExpenseModal from '../../../../components/ExpenseModal';
 // 👇 IMPORTAMOS EL TICKET DE LUJO
-import LuxuryTicket from './LuxuryTicket';
+import LuxuryTicket from '../../../../components/LuxuryTicket';
 
-import { generateReceipt } from '../utils/ticketGenerator'; // Opcional si usas el de lujo
-import { sendWhatsAppTicket } from '../utils/whatsappGenerator'; // Opcional
-import useHotkeys from '../hooks/useHotkeys';
+import { generateReceipt } from '../../../../utils/ticketGenerator'; // Opcional si usas el de lujo
+import { sendWhatsAppTicket } from '../../../../utils/whatsappGenerator'; // Opcional
+import useHotkeys from '../../../../hooks/useHotkeys';
 import toast from 'react-hot-toast';
 
 function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfig }) {
