@@ -5,14 +5,24 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useSales } from '../../../../hooks/useSales';
 import { useShifts } from '../../../../hooks/useShifts';
 
-// Iconos modernos
 import {
-  Search, Trash2, Plus, Minus, Edit2, FileText,
-  Lock, Unlock, DollarSign, ShoppingCart,
-  CreditCard, Archive, RefreshCcw, XCircle
+  Search,
+  Trash2,
+  Plus,
+  Minus,
+  Edit2,
+  FileText,
+  Lock,
+  Unlock,
+  DollarSign,
+  ShoppingCart,
+  CreditCard,
+  Archive,
+  RefreshCcw,
+  XCircle,
 } from 'lucide-react';
 
-// Modales y Componentes
+// Modales y componentes
 import PaymentModal from '../modals/PaymentModal';
 import QuickSaleModal from '../modals/QuickSaleModal';
 import GlobalDiscountModal from '../modals/GlobalDiscountModal';
@@ -21,10 +31,24 @@ import DailySalesModal from '../modals/DailySalesModal';
 import OpenRegisterModal from '../modals/OpenRegisterModal';
 import CloseRegisterModal from '../modals/CloseRegisterModal';
 import ExpenseModal from '../modals/ExpenseModal';
+
+// Ticket de lujo (WhatsApp)
 import LuxuryTicket from '../ticket/LuxuryTicket';
+
+// Ticket térmico por texto (el mismo del historial)
+import { generateReceipt } from '../../../../utils/ticketGenerator';
 
 import useHotkeys from '../../../../hooks/useHotkeys';
 import toast from 'react-hot-toast';
+
+// --- Helper: saber si el usuario está escribiendo en un input/textarea/etc ---
+const isTypingElement = (element) => {
+  if (!element) return false;
+  const tag = (element.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+  if (element.isContentEditable) return true;
+  return false;
+};
 
 function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfig }) {
   const currencySymbol = storeConfig?.currency || 'S/';
@@ -40,7 +64,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     openRegister,
     closeRegister,
     loading: loadingShift,
-    refreshShift
+    refreshShift,
   } = useShifts();
 
   // Modales
@@ -53,7 +77,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
   const [isCloseRegisterOpen, setIsCloseRegisterOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
-  // Ticket de lujo (para WhatsApp / visual)
+  // Ticket de lujo (solo WhatsApp)
   const [saleForTicket, setSaleForTicket] = useState(null);
 
   const [editingPriceId, setEditingPriceId] = useState(null);
@@ -61,14 +85,14 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
 
   const searchInputRef = useRef(null);
 
-  // Si la pestaña está activa y la caja está cerrada, forzamos modal de abrir caja
+  // Si la pestaña de ventas está activa y la caja está cerrada, pedir abrir caja
   useEffect(() => {
     if (isActive && !loadingShift && !isShiftOpen) {
       setIsOpenRegisterOpen(true);
     }
   }, [isActive, loadingShift, isShiftOpen]);
 
-  // Reset descuento global cuando se vacía el carrito
+  // Cuando el carrito queda vacío, limpiar descuento global
   useEffect(() => {
     if (safeCart.length === 0) setGlobalDiscount(0);
   }, [safeCart]);
@@ -79,20 +103,21 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
   };
 
-  // Evitar robar foco cuando hay modales abiertos o ticket abierto
+  // Manejo de foco automático cuando no hay modales abiertos ni ticket de lujo
   useEffect(() => {
-    const anyModalOpen =
-      isPaymentModalOpen ||
-      isQuickSaleModalOpen ||
-      isDiscountModalOpen ||
-      isDeptModalOpen ||
-      isCloseRegisterOpen ||
-      isOpenRegisterOpen ||
-      isDailySalesOpen ||
-      isExpenseModalOpen ||
-      !!saleForTicket;
-
-    if (isActive && isShiftOpen && !anyModalOpen) {
+    if (
+      isActive &&
+      isShiftOpen &&
+      !isPaymentModalOpen &&
+      !isQuickSaleModalOpen &&
+      !isDiscountModalOpen &&
+      !isDeptModalOpen &&
+      !isCloseRegisterOpen &&
+      !isOpenRegisterOpen &&
+      !isDailySalesOpen &&
+      !isExpenseModalOpen &&
+      !saleForTicket
+    ) {
       setTimeout(returnFocusToSearch, 100);
     }
   }, [
@@ -106,9 +131,10 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     isOpenRegisterOpen,
     isDailySalesOpen,
     isExpenseModalOpen,
-    saleForTicket
+    saleForTicket,
   ]);
 
+  // Apertura de caja
   const handleOpenRegister = async (amount) => {
     const success = await openRegister(amount);
     if (success) {
@@ -117,11 +143,13 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
   };
 
+  // Pre-cierre de caja (para refrescar datos antes de mostrar modal)
   const handlePreCloseRegister = async () => {
     await refreshShift();
     setIsCloseRegisterOpen(true);
   };
 
+  // Cierre de caja
   const handleCloseRegister = async (data) => {
     const success = await closeRegister(data);
     if (success) {
@@ -131,6 +159,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
   };
 
+  // Verifica si caja está abierta
   const checkLock = () => {
     if (!isShiftOpen) {
       toast.error('⛔ CAJA CERRADA.');
@@ -140,28 +169,25 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     return false;
   };
 
+  // Búsqueda / escaneo
   const handleSearch = async (e) => {
     e.preventDefault();
     if (checkLock()) return;
 
     const queryValue = searchInputRef.current ? searchInputRef.current.value : '';
     if (!queryValue) return;
-
     setLocalError(null);
+
     try {
       let q = query(
         collection(db, 'products'),
         where('codes', 'array-contains', queryValue),
-        limit(1)
+        limit(1),
       );
       let querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        q = query(
-          collection(db, 'products'),
-          where('code', '==', queryValue),
-          limit(1)
-        );
+        q = query(collection(db, 'products'), where('code', '==', queryValue), limit(1));
         querySnapshot = await getDocs(q);
       }
 
@@ -171,7 +197,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
       } else {
         const productData = {
           ...querySnapshot.docs[0].data(),
-          id: querySnapshot.docs[0].id
+          id: querySnapshot.docs[0].id,
         };
         addToCart(productData);
       }
@@ -185,6 +211,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
   };
 
+  // Agregar producto al carrito
   const addToCart = (product) => {
     if (checkLock()) return;
 
@@ -196,11 +223,12 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
 
     const existingItem = safeCart.find((item) => item.id === product.id);
+
     if (existingItem) {
       const newCart = safeCart.map((item) =>
         item.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
-          : item
+          : item,
       );
       onCartChange(newCart);
     } else {
@@ -212,7 +240,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
         originalPrice: product.price,
         discount: 0,
         discountPercent: 0,
-        stock: product.stock || 999
+        stock: product.stock || 999,
       };
       onCartChange([...safeCart, newItem]);
     }
@@ -225,7 +253,6 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
 
   const clearCart = () => {
     if (safeCart.length === 0) return;
-
     toast(
       (t) => (
         <div className="flex items-center gap-3">
@@ -249,10 +276,11 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
           </button>
         </div>
       ),
-      { duration: 4000, icon: '🗑️' }
+      { duration: 4000, icon: '🗑️' },
     );
   };
 
+  // Descuentos por producto
   const handleDiscountChange = (itemId, value, type) => {
     if (checkLock()) return;
     const item = safeCart.find((i) => i.id === itemId);
@@ -280,47 +308,39 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     }
 
     onCartChange(
-      safeCart.map((i) => {
-        if (i.id === itemId) {
-          return {
-            ...i,
-            discount: Math.max(0, parseFloat(discount.toFixed(2))),
-            discountPercent: Math.max(
-              0,
-              parseFloat(discountPercent.toFixed(2))
-            )
-          };
-        }
-        return i;
-      })
+      safeCart.map((i) =>
+        i.id === itemId
+          ? {
+              ...i,
+              discount: Math.max(0, parseFloat(discount.toFixed(2))),
+              discountPercent: Math.max(
+                0,
+                parseFloat(discountPercent.toFixed(2)),
+              ),
+            }
+          : i,
+      ),
     );
   };
 
+  // Edición de precio unitario
   const handlePriceEdit = (itemId, newPrice) => {
     if (checkLock()) return;
     const price = parseFloat(newPrice) || 0;
-
     onCartChange(
-      safeCart.map((i) => {
-        if (i.id === itemId) {
-          return {
-            ...i,
-            price,
-            discount: 0,
-            discountPercent: 0
-          };
-        }
-        return i;
-      })
+      safeCart.map((i) =>
+        i.id === itemId
+          ? { ...i, price, discount: 0, discountPercent: 0 }
+          : i,
+      ),
     );
-
     setEditingPriceId(null);
     returnFocusToSearch();
   };
 
+  // Cantidad
   const updateQuantity = (productId, newQuantity) => {
     if (checkLock()) return;
-
     const qty = Number(newQuantity);
     const productInCart = safeCart.find((item) => item.id === productId);
     if (!productInCart) return;
@@ -340,18 +360,14 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
       onCartChange(
         safeCart.map((item) =>
           item.id === productId
-            ? {
-                ...item,
-                quantity: qty,
-                discount: 0,
-                discountPercent: 0
-              }
-            : item
-        )
+            ? { ...item, quantity: qty, discount: 0, discountPercent: 0 }
+            : item,
+        ),
       );
     }
   };
 
+  // Subtotal / descuentos / total
   const { subtotal, itemDiscounts, total, totalItems } = useMemo(() => {
     let subtotal = 0;
     let itemDiscounts = 0;
@@ -370,7 +386,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     return { subtotal, itemDiscounts, total, totalItems };
   }, [safeCart, globalDiscount]);
 
-  // --- CONFIRMACIÓN DE PAGO ---
+  // -------------- CONFIRMACIÓN DE PAGO --------------
   const handlePaymentConfirmation = async (paymentDetails) => {
     if (checkLock()) return;
 
@@ -385,35 +401,51 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
       totalItems,
       payment: paymentDetails,
       shiftId: currentShift?.id,
-      currency: currencySymbol
+      currency: currencySymbol,
     };
 
+    // 1. Guardar venta en Firebase
     const result = await processSale(saleData, safeCart);
     if (!result || !result.success) return;
 
-    const saleForTicketData = {
+    // 2. Datos comunes para tickets
+    const commonTicketData = {
       ...saleData,
       id: result.id,
       items: [...safeCart],
       createdAt: new Date(),
       customerName: paymentDetails.clientName || 'Cliente',
       customerPhone: paymentDetails.phone || '',
-      type:
-        paymentDetails.method === 'CREDITO' ||
-        (paymentDetails.amountReceived ?? total) < total
-          ? 'BOLSITA'
-          : 'VENTA',
-      deposit: paymentDetails.amountReceived || total
     };
 
-    setSaleForTicket(saleForTicketData);
+    // 3. Según método de entrega
+    if (paymentDetails.delivery === 'WHATSAPP') {
+      // Ticket lujo para redes
+      const type =
+        paymentDetails.method === 'CREDITO' ||
+        (paymentDetails.amountReceived || 0) < total
+          ? 'BOLSITA'
+          : 'VENTA';
 
+      setSaleForTicket({
+        ...commonTicketData,
+        type,
+        deposit: paymentDetails.amountReceived || total,
+      });
+    } else {
+      // Ticket térmico de texto: igual que desde el historial
+      generateReceipt(commonTicketData, storeConfig || {});
+    }
+
+    // 4. Limpieza / refresco
     onSaleComplete();
     setGlobalDiscount(0);
     setIsPaymentModalOpen(false);
     await refreshShift();
+    returnFocusToSearch();
   };
 
+  // Abrir modal de pago
   const openPaymentModal = () => {
     if (checkLock()) return;
     if (loadingSale) return;
@@ -424,45 +456,116 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     setIsPaymentModalOpen(true);
   };
 
-  // --- HOTKEYS MODO SEGURO ---
-  const anyModalOpen =
-    isPaymentModalOpen ||
-    isQuickSaleModalOpen ||
-    isDiscountModalOpen ||
-    isDeptModalOpen ||
-    isCloseRegisterOpen ||
-    isOpenRegisterOpen ||
-    isDailySalesOpen ||
-    isExpenseModalOpen ||
-    !!saleForTicket;
-
+  // F12 cobra (mantengo tu hook)
   useHotkeys(
-    {
-      F12: () => openPaymentModal(),
-      '+': () => {
-        if (anyModalOpen) return;
-        if (checkLock()) return;
-        setIsQuickSaleModalOpen(true);
-      }
-    },
+    { F12: () => openPaymentModal() },
     [
       safeCart,
       loadingSale,
       isPaymentModalOpen,
-      isQuickSaleModalOpen,
-      isDiscountModalOpen,
-      isDeptModalOpen,
-      isCloseRegisterOpen,
-      isOpenRegisterOpen,
-      isDailySalesOpen,
-      isExpenseModalOpen,
       isActive,
       isShiftOpen,
-      saleForTicket,
-      anyModalOpen
     ],
-    isActive && isShiftOpen && !anyModalOpen
+    isActive &&
+      isShiftOpen &&
+      !isPaymentModalOpen &&
+      !isQuickSaleModalOpen &&
+      !isDiscountModalOpen &&
+      !isDeptModalOpen &&
+      !isCloseRegisterOpen &&
+      !isOpenRegisterOpen &&
+      !isDailySalesOpen &&
+      !isExpenseModalOpen,
   );
+
+  // -------------- ATAJOS RÁPIDOS SIN CTRL --------------
+  // +  → Venta rápida
+  // *  → Departamentos
+  // d/D → Descuento global
+  // %  → Descuento global (atajo alterno)
+  // ArrowUp   → +1 cantidad al último ítem
+  // ArrowDown → -1 cantidad al último ítem
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handler = (e) => {
+      if (!isActive) return;
+
+      // Si está escribiendo en algún input/textarea/etc → no hacemos nada
+      if (isTypingElement(document.activeElement)) return;
+
+      // Si hay algún modal o ticket de lujo, no disparamos atajos
+      const anyModalOpen =
+        isPaymentModalOpen ||
+        isQuickSaleModalOpen ||
+        isDiscountModalOpen ||
+        isDeptModalOpen ||
+        isCloseRegisterOpen ||
+        isOpenRegisterOpen ||
+        isDailySalesOpen ||
+        isExpenseModalOpen ||
+        !!saleForTicket;
+
+      if (anyModalOpen) return;
+
+      // Caja cerrada → primero respetamos eso
+      if (!isShiftOpen) return;
+
+      const key = e.key;
+
+      if (key === '+') {
+        e.preventDefault();
+        if (!checkLock()) setIsQuickSaleModalOpen(true);
+        return;
+      }
+
+      if (key === '*') {
+        e.preventDefault();
+        if (!checkLock()) setIsDeptModalOpen(true);
+        return;
+      }
+
+      if (key === 'd' || key === 'D' || key === '%') {
+        e.preventDefault();
+        if (!checkLock()) {
+          if (safeCart.length === 0) return;
+          setIsDiscountModalOpen(true);
+        }
+        return;
+      }
+
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        if (safeCart.length === 0) return;
+
+        const lastItem = safeCart[safeCart.length - 1];
+        if (!lastItem) return;
+
+        e.preventDefault();
+
+        if (key === 'ArrowUp') {
+          updateQuantity(lastItem.id, lastItem.quantity + 1);
+        } else if (key === 'ArrowDown') {
+          updateQuantity(lastItem.id, lastItem.quantity - 1);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [
+    isActive,
+    isShiftOpen,
+    isPaymentModalOpen,
+    isQuickSaleModalOpen,
+    isDiscountModalOpen,
+    isDeptModalOpen,
+    isCloseRegisterOpen,
+    isOpenRegisterOpen,
+    isDailySalesOpen,
+    isExpenseModalOpen,
+    saleForTicket,
+    safeCart,
+  ]);
 
   // Cierres de modales
   const handleClosePaymentModal = () => {
@@ -503,74 +606,100 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
     handleCloseDeptModal();
   };
 
+  // Cerrar ticket de lujo
   const handleCloseLuxuryTicket = () => {
     setSaleForTicket(null);
     returnFocusToSearch();
   };
 
+  // ----------------- RENDER -----------------
   return (
     <div className="flex h-full w-full bg-slate-50 font-sans">
-      {/* --- SECCIÓN IZQUIERDA: TICKET Y PRODUCTOS --- */}
+      {/* IZQUIERDA: TICKET / PRODUCTOS */}
       <div className="flex-1 flex flex-col border-r border-slate-200">
-        {/* Barra de Búsqueda y Herramientas */}
-        <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex gap-2">
-          <form onSubmit={handleSearch} className="flex-1 flex relative">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Escanear código o buscar..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold transition-all text-slate-700 font-medium"
-              autoFocus
-            />
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={18}
-            />
-          </form>
+        {/* Barra de búsqueda */}
+        <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex flex-col gap-2">
+          <div className="flex gap-2">
+            <form onSubmit={handleSearch} className="flex-1 flex relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Escanear código o buscar..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold transition-all text-slate-700 font-medium"
+                autoFocus
+              />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+              />
+            </form>
 
-          {/* Botones Rápidos */}
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (!checkLock()) setIsQuickSaleModalOpen(true);
-              }}
-              className="p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-              title="Venta Rápida / Manual"
-            >
-              <Plus size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!checkLock()) setIsDeptModalOpen(true);
-              }}
-              className="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-              title="Departamentos"
-            >
-              <Archive size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={clearCart}
-              className="p-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-              title="Limpiar Todo"
-            >
-              <Trash2 size={20} />
-            </button>
+            {/* Botones rápidos */}
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!checkLock()) setIsQuickSaleModalOpen(true);
+                }}
+                className="p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                title="Venta Rápida / Manual (+)"
+              >
+                <Plus size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!checkLock()) setIsDeptModalOpen(true);
+                }}
+                className="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                title="Departamentos (*)"
+              >
+                <Archive size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={clearCart}
+                className="p-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                title="Limpiar Todo"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de atajos con fondo azul claro y borde dorado */}
+          <div className="px-3 py-1 bg-blue-50 border border-yellow-400 rounded-md text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="font-semibold text-[10px] uppercase tracking-wide text-slate-600">
+              Atajos rápidos:
+            </span>
+            <span className="px-1.5 py-0.5 rounded border border-yellow-400 bg-white text-[10px] font-semibold">
+              + Venta rápida
+            </span>
+            <span className="px-1.5 py-0.5 rounded border border-yellow-400 bg-white text-[10px] font-semibold">
+              * Departamentos
+            </span>
+            <span className="px-1.5 py-0.5 rounded border border-yellow-400 bg-white text-[10px] font-semibold">
+              D / % Descuento global
+            </span>
+            <span className="px-1.5 py-0.5 rounded border border-yellow-400 bg-white text-[10px] font-semibold">
+              ↑↓ Cantidad último ítem
+            </span>
+            <span className="px-1.5 py-0.5 rounded border border-yellow-400 bg-white text-[10px] font-semibold">
+              F12 Cobrar
+            </span>
           </div>
         </div>
 
-        {/* Error local */}
+        {/* Mensaje error local */}
         {localError && (
           <div className="bg-red-100 text-red-700 px-4 py-2 text-sm font-medium text-center animate-pulse">
             {localError}
           </div>
         )}
 
-        {/* Encabezado */}
+        {/* Encabezado tabla */}
         <div className="flex items-center px-4 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
           <div className="flex-[3]">Producto</div>
           <div className="flex-1 text-center">Precio</div>
@@ -581,7 +710,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
           <div className="w-8" />
         </div>
 
-        {/* Lista de items */}
+        {/* Lista de ítems */}
         <div className="flex-1 overflow-y-auto bg-white scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           {!isShiftOpen ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-70">
@@ -606,7 +735,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
                   key={item.id}
                   className="flex items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors group"
                 >
-                  {/* Nombre */}
+                  {/* Nombre y código */}
                   <div className="flex-[3] overflow-hidden pr-2">
                     <div className="font-bold text-slate-800 truncate text-sm">
                       {item.name}
@@ -692,7 +821,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
                         handleDiscountChange(
                           item.id,
                           e.target.value.replace('%', ''),
-                          'percent'
+                          'percent',
                         )
                       }
                       className="w-12 text-center text-xs border border-slate-200 rounded py-1 text-slate-600 focus:border-brand-gold focus:outline-none"
@@ -711,7 +840,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
                         handleDiscountChange(
                           item.id,
                           e.target.value,
-                          'amount'
+                          'amount',
                         )
                       }
                       className="w-16 text-center text-xs border border-slate-200 rounded py-1 text-slate-600 focus:border-brand-gold focus:outline-none"
@@ -739,16 +868,18 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
         </div>
       </div>
 
-      {/* --- SECCIÓN DERECHA: RESUMEN Y CONTROL --- */}
+      {/* DERECHA: RESUMEN / CAJA */}
       <div className="w-80 bg-slate-50 border-l border-slate-200 flex flex-col shadow-lg z-10">
-        {/* Panel de control de caja */}
+        {/* Controles de caja */}
         <div className="p-4 grid grid-cols-3 gap-2 border-b border-slate-200 bg-white">
           <button
             onClick={() => setIsOpenRegisterOpen(true)}
             className="flex flex-col items-center justify-center p-2 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors gap-1"
           >
             <Unlock size={18} />
-            <span className="text-[10px] font-bold uppercase">Abrir</span>
+            <span className="text-[10px] font-bold uppercase">
+              Abrir
+            </span>
           </button>
           <button
             onClick={() => {
@@ -758,7 +889,9 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
             className="flex flex-col items-center justify-center p-2 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors gap-1"
           >
             <DollarSign size={18} />
-            <span className="text-[10px] font-bold uppercase">Gasto</span>
+            <span className="text-[10px] font-bold uppercase">
+              Gasto
+            </span>
           </button>
           <button
             onClick={handlePreCloseRegister}
@@ -766,7 +899,9 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
             className="flex flex-col items-center justify-center p-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors gap-1"
           >
             <Lock size={18} />
-            <span className="text-[10px] font-bold uppercase">Cerrar</span>
+            <span className="text-[10px] font-bold uppercase">
+              Cerrar
+            </span>
           </button>
           <button
             onClick={() => setIsDailySalesOpen(true)}
@@ -778,7 +913,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
 
         <div className="flex-1 bg-slate-50" />
 
-        {/* Resumen de venta */}
+        {/* Resumen venta */}
         <div className="bg-white border-t border-slate-200 p-5 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <h2 className="text-xs font-bold text-slate-400 uppercase mb-4 tracking-wider">
             Resumen de Venta
@@ -816,7 +951,9 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
               </div>
               <span
                 className={`font-medium ${
-                  globalDiscount > 0 ? 'text-red-500' : 'text-slate-400'
+                  globalDiscount > 0
+                    ? 'text-red-500'
+                    : 'text-slate-400'
                 }`}
               >
                 - {currencySymbol} {globalDiscount.toFixed(2)}
@@ -825,7 +962,9 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
           </div>
 
           <div className="flex justify-between items-end border-t border-dashed border-slate-300 pt-4 mb-6">
-            <span className="text-lg font-bold text-slate-700">TOTAL</span>
+            <span className="text-lg font-bold text-slate-700">
+              TOTAL
+            </span>
             <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
               {currencySymbol} {total.toFixed(2)}
             </span>
@@ -838,7 +977,8 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
           >
             {loadingSale ? (
               <>
-                <RefreshCcw className="animate-spin" size={20} /> PROCESANDO...
+                <RefreshCcw className="animate-spin" size={20} />{' '}
+                PROCESANDO...
               </>
             ) : (
               <>
@@ -876,7 +1016,10 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
         onClose={handleCloseDeptModal}
         onProductSelect={handleSelectProductFromDept}
       />
-      <DailySalesModal show={isDailySalesOpen} onClose={handleCloseDailySales} />
+      <DailySalesModal
+        show={isDailySalesOpen}
+        onClose={handleCloseDailySales}
+      />
       <OpenRegisterModal
         show={isOpenRegisterOpen}
         onClose={() => setIsOpenRegisterOpen(false)}
@@ -894,7 +1037,7 @@ function PosInterface({ cart, onCartChange, onSaleComplete, isActive, storeConfi
         onClose={handleCloseExpenseModal}
       />
 
-      {/* Ticket de lujo para WhatsApp / visual */}
+      {/* Ticket de lujo (solo WhatsApp) */}
       {saleForTicket && (
         <LuxuryTicket
           saleData={saleForTicket}
