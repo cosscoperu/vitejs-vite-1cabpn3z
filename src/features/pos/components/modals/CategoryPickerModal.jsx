@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../firebase/config';
+import { db } from '../../../../firebase/config';
 // 👇 IMPORTANTE: Agregamos addDoc para poder guardar
 import { collection, query, getDocs, addDoc } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';

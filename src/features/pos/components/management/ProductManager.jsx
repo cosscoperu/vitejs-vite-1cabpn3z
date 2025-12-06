@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 // Asegúrate de que useProducts ahora devuelve searchProducts
-import { useProducts } from '../hooks/useProducts';
-import EditProductModal from './EditProductModal'; 
-import AddStockModal from './AddStockModal';
-import HistoryModal from './HistoryModal';
+import { useProducts } from '../../../../hooks/useProducts';
+import EditProductModal from '../modals/EditProductModal';
+import AddStockModal from '../modals/AddStockModal';
+import HistoryModal from '../modals/HistoryModal';
+import EditHistoryModal from '../modals/EditHistoryModal';
+import CategoryPickerModal from '../modals/CategoryPickerModal';
 
 // ... (MANTÉN TUS ICONOS IGUAL QUE ANTES) ...
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase/config';
+import { db } from '../../../../firebase/config';
 import { collection, query, where, getDocs } from 'firebase/firestore'; // Quitamos 'orderBy' de aquí para evitar errores de índice
 
 // --- ICONOS SVG ---

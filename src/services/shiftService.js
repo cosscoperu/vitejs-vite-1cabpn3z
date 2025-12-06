@@ -1,4 +1,4 @@
-// src/services/shiftServices.js
+// src/services/shiftService.js
 import { db } from '../firebase/config';
 import {
   collection,
@@ -10,14 +10,13 @@ import {
   limit,
   getDocs,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'shifts';
 
 /**
- * Obtiene el turno abierto actual (si existe).
- * Normaliza todos los montos a Number para que el modal de cierre
- * siempre reciba valores válidos (0 en lugar de undefined).
+ * Obtiene el turno abierto actual (si existe) y normaliza campos numéricos.
  */
 export const getCurrentOpenShift = async () => {
   try {
@@ -36,7 +35,6 @@ export const getCurrentOpenShift = async () => {
     return {
       id: docSnap.id,
       ...data,
-      // Normalizamos todos los campos numéricos
       initialAmount: Number(data.initialAmount || 0),
       salesTotal: Number(data.salesTotal || 0),
       expensesTotal: Number(data.expensesTotal || 0),
@@ -57,9 +55,6 @@ export const getCurrentOpenShift = async () => {
 
 /**
  * Abre un nuevo turno de caja.
- * @param {number} initialAmount - Monto de apertura (Sencillo/Cambio).
- * @param {string} userId - ID del usuario que abre.
- * @param {string} userName - Nombre del usuario.
  */
 export const openShift = async (
   initialAmount,
@@ -67,7 +62,7 @@ export const openShift = async (
   userName = 'Cajero Principal'
 ) => {
   try {
-    // Verificación doble: evitar 2 cajas abiertas
+    // Evitar 2 cajas abiertas
     const current = await getCurrentOpenShift();
     if (current) throw new Error('Ya existe una caja abierta.');
 
@@ -79,14 +74,12 @@ export const openShift = async (
       userName,
       startTime: serverTimestamp(),
 
-      // Fondo y totales
       initialAmount: inicial,
       salesTotal: 0,
       expensesTotal: 0,
       expectedTotal: inicial,
       itemsSold: 0,
 
-      // Desglose por método (IMPORTANTE para el arqueo)
       cashSales: 0,
       digitalSales: 0,
       cardSales: 0,
@@ -96,7 +89,6 @@ export const openShift = async (
 
     const docRef = await addDoc(collection(db, COLLECTION_NAME), newShift);
 
-    // Devolvemos el objeto normalizado como en getCurrentOpenShift
     return {
       id: docRef.id,
       ...newShift,
@@ -108,9 +100,22 @@ export const openShift = async (
 };
 
 /**
+ * Suma un gasto al turno actual (campo expensesTotal).
+ */
+export const addExpenseToShift = async (shiftId, amount) => {
+  try {
+    const shiftRef = doc(db, COLLECTION_NAME, shiftId);
+    await updateDoc(shiftRef, {
+      expensesTotal: increment(Number(amount) || 0),
+    });
+  } catch (error) {
+    console.error('Error actualizando gastos del turno:', error);
+    throw error;
+  }
+};
+
+/**
  * Cierra el turno actual.
- * @param {string} shiftId - ID del turno a cerrar.
- * @param {Object} closingData - Datos finales (total ventas, gastos, efectivo real, etc).
  */
 export const closeShift = async (shiftId, closingData) => {
   try {

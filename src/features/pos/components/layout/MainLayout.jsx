@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../firebase/config'; // Agregamos db
+import { auth, db } from '../../../../firebase/config'; // Agregamos db
 import { doc, getDoc } from 'firebase/firestore'; // Agregamos funciones de Firestore
-import useHotkeys from '../hooks/useHotkeys';
-import ConfigModal from './ConfigModal';
-import { cn } from '../utils/cn'; 
+import useHotkeys from '../../../../hooks/useHotkeys';
+import ConfigModal from '../modals/ConfigModal';
+import { cn } from '../../../../utils/cn'; 
 
 // --- ICONOS MODERNOS ---
 import { 

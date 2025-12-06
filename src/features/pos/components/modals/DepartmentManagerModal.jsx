@@ -1,6 +1,6 @@
 // src/components/DepartmentManagerModal.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { db } from '../firebase/config';
+import { db } from '../../../../firebase/config';
 import { collection, query, getDocs, addDoc, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 

@@ -1,7 +1,7 @@
 // src/components/EditProductModal.jsx
 import React, { useState, useEffect } from 'react';
 import { arrayUnion } from 'firebase/firestore'; 
-import { useProducts } from '../hooks/useProducts'; 
+import { useProducts } from '../../../../hooks/useProducts'; 
 import EditHistoryModal from './EditHistoryModal';
 // 👇 Importamos el nuevo Picker
 import CategoryPickerModal from './CategoryPickerModal';

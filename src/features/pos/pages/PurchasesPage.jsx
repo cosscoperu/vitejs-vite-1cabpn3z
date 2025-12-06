@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // <--- Importamos useNavigate
-import { useProducts } from '../hooks/useProducts';
+import { useProducts } from '../../../hooks/useProducts';
 import toast from 'react-hot-toast';
 
-import DepartmentManagerModal from '../components/DepartmentManagerModal';
-import CategoryPickerModal from '../components/CategoryPickerModal';
+import DepartmentManagerModal from '../components/modals/DepartmentManagerModal';
+import CategoryPickerModal from '../components/modals/CategoryPickerModal';
 
 function PurchasesPage() {
   const navigate = useNavigate(); // Hook para navegar

@@ -1,230 +1,232 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+// src/utils/ticketGenerator.js
+// Generador de ticket térmico para impresora de 80mm
 
-export const generateReceipt = async (sale) => {
-  
-  // 1. RECUPERAR CONFIGURACIÓN DE LA EMPRESA
-  let companySettings = {
-    name: "MI NEGOCIO",
-    ruc: "00000000000",
-    address: "Sin Dirección",
-    phone: "",
-    logoUrl: "",
-    showLogoOnTicket: true,
-    paperSize: "80mm",
-    footerLines: ["¡Gracias por su compra!"],
-    socialFacebook: "",
-    socialInstagram: "",
-    socialWeb: ""
-  };
+const TICKET_WIDTH = 40; // columnas aproximadas para texto monoespaciado
 
-  try {
-    const docRef = doc(db, 'settings', 'company');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (!data.footerLines && data.message) {
-        data.footerLines = [data.message];
-      }
-      companySettings = { ...companySettings, ...data };
+const padLeft = (text, width) => String(text).padStart(width, ' ');
+const padRight = (text, width) => String(text).padEnd(width, ' ');
+const center = (text) => {
+  const len = String(text).length;
+  if (len >= TICKET_WIDTH) return text;
+  const spaces = Math.floor((TICKET_WIDTH - len) / 2);
+  return ' '.repeat(spaces) + text;
+};
+const line = (char = '-') => char.repeat(TICKET_WIDTH);
+const money = (n = 0) =>
+  (Number.isFinite(Number(n)) ? Number(n) : 0).toFixed(2);
+
+/**
+ * sale:
+ *  - id
+ *  - items: [{ name, quantity, price, discount }]
+ *  - subtotal
+ *  - itemDiscounts
+ *  - globalDiscount
+ *  - totalDiscounts
+ *  - total
+ *  - payment: {
+ *       method,
+ *       multiPayments?: [{ method, amount }],
+ *       amountReceived?, amountPaid?
+ *    }
+ *  - createdAt (Date o Timestamp de Firestore)
+ *
+ * storeConfig:
+ *  - name, ruc, address, phone, website, facebook, instagram
+ */
+export function generateReceipt(sale = {}, storeConfig = {}) {
+  const {
+    id,
+    items = [],
+    subtotal = 0,
+    itemDiscounts = 0,
+    globalDiscount = 0,
+    totalDiscounts,
+    total = 0,
+    payment = {},
+    createdAt,
+    currency = 'S/',
+  } = sale;
+
+  const businessName = storeConfig.name || 'COSSCO POS';
+  const ruc = storeConfig.ruc || '--------';
+  const address = storeConfig.address || '';
+  const phone = storeConfig.phone || '';
+  const website = storeConfig.website || 'www.cossco.com';
+  const facebook = storeConfig.facebook || 'COSSCO';
+  const instagram = storeConfig.instagram || 'cossco_';
+
+  // Fecha
+  let dateObj;
+  if (createdAt && createdAt.seconds) {
+    dateObj = new Date(createdAt.seconds * 1000);
+  } else if (createdAt instanceof Date) {
+    dateObj = createdAt;
+  } else {
+    dateObj = new Date();
+  }
+  const fecha = dateObj.toLocaleDateString();
+  const hora = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Descuentos
+  const globalDisc = Number(globalDiscount) || 0;
+  const itemDisc = Number(itemDiscounts) || 0;
+  const totalDisc =
+    totalDiscounts != null ? Number(totalDiscounts) : itemDisc + globalDisc;
+
+  // Pagos
+  let pagos = [];
+  if (Array.isArray(payment.multiPayments) && payment.multiPayments.length > 0) {
+    pagos = payment.multiPayments.map((p) => ({
+      method: p.method || 'MÉTODO',
+      amount: p.amount ?? 0,
+    }));
+  } else if (payment.method) {
+    const amount =
+      payment.amountReceived ?? payment.amountPaid ?? total;
+    pagos = [{ method: payment.method, amount }];
+  } else {
+    pagos = [{ method: 'EFECTIVO', amount: total }];
+  }
+
+  let condicion = 'CONTADO';
+  if (payment.method === 'CREDITO') {
+    condicion = 'CRÉDITO';
+  } else if (pagos.length > 1) {
+    condicion = 'MIXTO';
+  }
+
+  const lines = [];
+
+  // Encabezado negocio
+  lines.push(center(businessName));
+  lines.push('');
+  lines.push(center(`RUC: ${ruc}`));
+  if (address) lines.push(center(address));
+  if (phone) lines.push(center(`Tel: ${phone}`));
+  lines.push(line());
+  lines.push(`Ticket: #${id || '--------'}`);
+  lines.push(`Fecha: ${fecha} ${hora}`);
+  lines.push(`Condición: ${condicion}`);
+  lines.push(line());
+
+  // Encabezado de items
+  lines.push('CANT DESCRIPTION               IMP.');
+  lines.push(line());
+
+  // Items
+  items.forEach((item) => {
+    const qty = item.quantity || 0;
+    const name = (item.name || '').toString();
+    const price = Number(item.price) || 0;
+    const discount = Number(item.discount) || 0;
+
+    const importe = price * qty;
+
+    // Línea principal: "1  Nombre                 100.00"
+    const left = padRight(`${qty} ${name}`.slice(0, 28), 28);
+    const right = padLeft(money(importe), 10);
+    lines.push(left + right);
+
+    // Descuento de línea
+    if (discount > 0) {
+      const descText = `↓ Desc.: - ${currency} ${money(discount)}`;
+      lines.push('  ' + descText);
     }
-  } catch (e) {
-    console.error("Error leyendo config empresa:", e);
-  }
+  });
 
-  // 2. DETERMINAR MONEDA
-  let currencySymbol = sale.currency; 
-  if (!currencySymbol) {
-    try {
-      const localConfig = localStorage.getItem('POS_GLOBAL_CONFIG');
-      if (localConfig) currencySymbol = JSON.parse(localConfig).currency;
-    } catch (e) {}
-  }
-  currencySymbol = currencySymbol || 'S/';
+  lines.push(line());
 
-  const { name, ruc, address, phone, logoUrl, showLogoOnTicket, paperSize, footerLines, socialFacebook, socialInstagram, socialWeb } = companySettings;
+  // Totales
+  lines.push(
+    padRight('Subtotal:', 20) +
+      padLeft(`${currency} ${money(subtotal)}`, 20)
+  );
 
-  // 3. AJUSTES DE FORMATO
-  const isSmallPaper = paperSize === '58mm';
-  const bodyWidth = isSmallPaper ? '48mm' : '72mm';
-  const fontSize = isSmallPaper ? '10px' : '12px';
+  // Descuento por ítems
+  lines.push(
+    padRight('Desc. Ítems:', 20) +
+      padLeft(`- ${currency} ${money(itemDisc)}`, 20)
+  );
 
-  const dateObj = sale.createdAt?.toDate ? sale.createdAt.toDate() : new Date();
-  const date = dateObj.toLocaleDateString('es-PE');
-  const time = dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-  const ticketId = sale.id ? sale.id.slice(-6).toUpperCase() : '---';
+  // Descuento global (NUEVO)
+  lines.push(
+    padRight('Desc. Global:', 20) +
+      padLeft(`- ${currency} ${money(globalDisc)}`, 20)
+  );
 
-  // Determinar texto principal de pago
-  let paymentText = "EFECTIVO";
-  const paymentInfo = sale.payment || {};
-  
-  if (paymentInfo.multiPayments && paymentInfo.multiPayments.length > 1) {
-      paymentText = "MIXTO";
-  } else if (paymentInfo.method) {
-      paymentText = paymentInfo.method.toUpperCase();
-  }
+  lines.push(
+    padRight('TOTAL:', 20) +
+      padLeft(`${currency} ${money(total)}`, 20)
+  );
 
-  // Calcular Ahorro Total
-  const totalSavings = (sale.itemDiscounts || 0) + (sale.globalDiscount || 0);
+  // Bloque de Ahorro Total
+  lines.push('');
+  lines.push(line());
+  lines.push(center('AHORRO TOTAL:'));
+  lines.push(center(`${currency} ${money(totalDisc)}`));
+  lines.push(line());
+  lines.push('');
 
-  // --- GENERACIÓN HTML ---
-  const htmlContent = `
-    <!DOCTYPE html>
+  // Métodos de pago
+  lines.push('MÉTODOS DE PAGO:');
+  pagos.forEach((p) => {
+    const methodName = `- ${p.method}`.toUpperCase();
+    const left = padRight(methodName.slice(0, 22), 22);
+    const right = padLeft(`${currency} ${money(p.amount)}`, 18);
+    lines.push(left + right);
+  });
+
+  lines.push('');
+  lines.push(line());
+  lines.push(center(website));
+  lines.push(center(`FB: ${facebook}`));
+  lines.push(center(`IG: ${instagram}`));
+  lines.push(line());
+  lines.push('');
+  lines.push(center('¡Gracias por su compra!'));
+  lines.push(center('todo cambio máximo 3 días'));
+  lines.push('');
+
+  const ticketText = lines.join('\n');
+
+  // Ventana de impresión
+  const printWindow = window.open('', '_blank', 'width=400,height=700');
+  if (!printWindow) return;
+
+  printWindow.document.write(`
     <html>
       <head>
-        <title>Ticket #${ticketId}</title>
+        <title>Ticket #${id || ''}</title>
         <style>
-          @page { margin: 0; size: ${paperSize} auto; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
-            font-family: 'Courier New', Courier, monospace;
-            width: ${bodyWidth};
-            margin: 0 auto;
-            padding: 5px 0;
-            font-size: ${fontSize};
-            color: #000;
-            line-height: 1.2;
+            font-family: "Courier New", monospace;
+            font-size: 12px;
+            padding: 10px;
           }
-          .center { text-align: center; }
-          .right { text-align: right; }
-          .header { margin-bottom: 10px; text-align: center; }
-          .logo { max-width: 60%; height: auto; margin-bottom: 5px; filter: grayscale(100%); } 
-          .company-name { font-size: 1.2em; font-weight: bold; margin: 5px 0; }
-          .divider { border-top: 1px dashed #000; margin: 5px 0; }
-          table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
-          td, th { padding: 2px 0; vertical-align: top; }
-          .col-cant { width: 15%; text-align: center; }
-          .col-desc { width: 60%; text-align: left; }
-          .col-total { width: 25%; text-align: right; }
-          .totals { margin-top: 5px; text-align: right; }
-          .total-row { display: flex; justify-content: space-between; }
-          .grand-total { font-size: 1.4em; font-weight: bold; margin-top: 5px; border-top: 1px solid #000; padding-top: 5px; }
-          .savings { font-weight: bold; font-size: 0.9em; text-align: center; margin-top: 5px; border: 1px solid #000; padding: 2px; border-radius: 3px; }
-          .payments { margin-top: 8px; font-size: 0.9em; border-top: 1px dashed #000; padding-top: 5px; }
-          .footer { margin-top: 15px; text-align: center; font-size: 0.9em; }
-          .socials { margin-top: 5px; font-size: 0.85em; }
+          pre { white-space: pre; }
+          @media print {
+            body { margin: 0; }
+          }
         </style>
       </head>
       <body>
-        <div class="header">
-          ${(showLogoOnTicket && logoUrl) ? `<img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/>` : ''}
-          <div class="company-name">${name}</div>
-          <div>RUC: ${ruc}</div>
-          <div>${address}</div>
-          ${phone ? `<div>Tel: ${phone}</div>` : ''}
-        </div>
-
-        <div class="divider"></div>
-        <div>Ticket: #${ticketId}<br>Fecha: ${date} ${time}<br>Condición: ${paymentText}</div>
-        <div class="divider"></div>
-
-        <table>
-          <thead>
-            <tr style="border-bottom: 1px solid #000;">
-              <th class="col-cant">CANT</th><th class="col-desc">DESCRIPCION</th><th class="col-total">IMP.</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sale.items.map(item => `
-              <tr>
-                <td class="col-cant">${item.quantity}</td>
-                <td class="col-desc">${item.name}</td>
-                <td class="col-total">${(item.price * item.quantity).toFixed(2)}</td>
-              </tr>
-              ${item.discount > 0 ? `
-              <tr>
-                <td></td>
-                <td colspan="2" style="font-size:0.85em; font-style:italic;">
-                   ↳ Desc: -${currencySymbol} ${item.discount.toFixed(2)}
-                </td>
-              </tr>` : ''}
-            `).join('')}
-          </tbody>
-        </table>
-
-        <div class="divider"></div>
-
-        <div class="totals">
-            ${totalSavings > 0 ? `
-                <div class="total-row"><span>Subtotal:</span><span>${currencySymbol} ${sale.subtotal.toFixed(2)}</span></div>
-                <div class="total-row"><span>Descuentos:</span><span>- ${currencySymbol} ${totalSavings.toFixed(2)}</span></div>
-            ` : ''}
-            
-            <div class="total-row grand-total"><span>TOTAL:</span><span>${currencySymbol} ${sale.total.toFixed(2)}</span></div>
-            
-            ${totalSavings > 0 ? `
-                <div class="savings">¡AHORRO TOTAL: ${currencySymbol} ${totalSavings.toFixed(2)}!</div>
-            ` : ''}
-        </div>
-
-        <!-- SECCIÓN DE PAGOS DETALLADA -->
-        <div class="payments">
-            <div style="font-weight:bold; margin-bottom:3px;">MÉTODOS DE PAGO:</div>
-            ${renderPaymentDetails(sale, currencySymbol)}
-        </div>
-
-        <div class="footer">
-          ${(socialWeb || socialFacebook || socialInstagram) ? `
-            <div class="divider"></div>
-            <div class="socials">
-              ${socialWeb ? `<div>🌐 ${socialWeb}</div>` : ''}
-              ${socialFacebook ? `<div>FB: ${socialFacebook}</div>` : ''}
-              ${socialInstagram ? `<div>IG: ${socialInstagram}</div>` : ''}
-            </div>
-          ` : ''}
-          
-          <div class="divider"></div>
-          ${footerLines && footerLines.length > 0 
-            ? footerLines.map(line => `<div>${line}</div>`).join('') 
-            : '¡Gracias por su compra!'}
-        </div>
-
-        <script>
-          window.onload = function() { 
-            window.print(); 
-            // setTimeout(function(){ window.close(); }, 500); 
-          }
-        </script>
+        <pre>${ticketText}</pre>
       </body>
     </html>
-  `;
+  `);
 
-  const printWindow = window.open('', 'ImpresionTicket', 'width=400,height=600');
-  if (printWindow) {
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  }
-};
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 
-// Helper mejorado para leer multiPayments
-function renderPaymentDetails(sale, currency) {
-    const payment = sale.payment || {};
-    let html = '';
-
-    // 1. Si hay lista de pagos múltiples (multiPayments)
-    if (payment.multiPayments && Array.isArray(payment.multiPayments) && payment.multiPayments.length > 0) {
-        html = payment.multiPayments.map(p => 
-            `<div style="display:flex; justify-content:space-between;">
-                <span>- ${(p.method || 'PAGO').toUpperCase()}:</span>
-                <span>${currency} ${Number(p.amount).toFixed(2)}</span>
-             </div>`
-        ).join('');
-    } 
-    // 2. Si es un pago simple
-    else if (payment.method) {
-        const amount = payment.amountReceived || payment.totalPaid || sale.total;
-        html = `<div style="display:flex; justify-content:space-between;">
-                  <span>- ${(payment.method).toUpperCase()}:</span>
-                  <span>${currency} ${Number(amount).toFixed(2)}</span>
-                </div>`;
+  // Opcional: cerrar luego de imprimir
+  setTimeout(() => {
+    try {
+      printWindow.close();
+    } catch (e) {
+      // ignorar
     }
-
-    // 3. Mostrar Vuelto si existe y es Efectivo
-    if (payment.change > 0) {
-        html += `<div style="display:flex; justify-content:space-between; margin-top:2px; border-top:1px dotted #000;">
-                    <span>VUELTO:</span>
-                    <span>${currency} ${Number(payment.change).toFixed(2)}</span>
-                 </div>`;
-    }
-
-    return html;
+  }, 1000);
 }

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { db } from '../firebase/config';
+import { db } from '../../../firebase/config';
 import { 
   collection, query, orderBy, where, limit, getDocs, onSnapshot 
 } from 'firebase/firestore'; 
@@ -14,11 +14,11 @@ import {
   addToOpenBag,
   removeItemFromOrder, // Nuevo
   addPartialPayment   // Nuevo
-} from '../services/orderService';
+} from '../../../services/orderService';
 
 // Componentes
-import ConfirmOrderModal from '../components/ConfirmOrderModal';
-import ClientInfoModal from '../components/ClientInfoModal';
+import ConfirmOrderModal from '../components/modals/ConfirmOrderModal';
+import ClientInfoModal from '../components/modals/ClientInfoModal';
 
 function OrdersPage() {
   const [viewMode, setViewMode] = useState('MANAGEMENT'); // 'MANAGEMENT' | 'LIVE'

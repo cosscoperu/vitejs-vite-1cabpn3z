@@ -1,10 +1,10 @@
 // src/components/ConfigModal.jsx
 import React, { useState, useEffect } from 'react';
-import { db, storage } from '../firebase/config'; // <-- Importamos storage
+import { db, storage } from '../../../../firebase/config'; // <-- Importamos storage
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // <-- Funciones de Storage
 import toast from 'react-hot-toast';
-import { COUNTRY_TEMPLATES } from '../utils/countryData';
+import { COUNTRY_TEMPLATES } from '../../../../utils/countryData';
 import { Upload, Link as LinkIcon, Image as ImageIcon } from 'lucide-react'; // Iconos para la UI
 
 const STORAGE_KEY = 'POS_GLOBAL_CONFIG';

@@ -1,6 +1,6 @@
 // fuente/pages/InventoryPage.jsx
 import React from 'react';
-import ProductManager from '../components/ProductManager'; // Importamos el componente
+import ProductManager from '../components/management/ProductManager';
 
 function InventoryPage() {
   return (
